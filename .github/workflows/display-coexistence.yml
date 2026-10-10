@@ -1,3 +1,4 @@
+---
 name: Windows display coexistence package
 on:
   pull_request:
@@ -27,7 +28,8 @@ jobs:
           ./tools/display-coexistence/tests/Test-HostDiscovery.ps1
       - name: Build opt-in Windows package
         shell: powershell
-        run: ./tools/display-coexistence/Build-Package.ps1 -OutputDirectory ./cmake-build-display-package -BundleSunshine
+        run: |
+          ./tools/display-coexistence/Build-Package.ps1 -OutputDirectory ./cmake-build-display-package -BundleSunshine
       - name: Upload installable package and hashes
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:

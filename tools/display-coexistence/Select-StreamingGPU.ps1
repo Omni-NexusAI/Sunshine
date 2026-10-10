@@ -27,7 +27,7 @@ function Write-SunshineConfig {
   [void](Assert-ProtectedPathAcl -Path $Path)
  }finally{if(Test-Path -LiteralPath $temporary){Remove-Item -LiteralPath $temporary -Force}}
 }
-function Check-Originals($before) {
+function Assert-OriginalDisplayLayout($before) {
  $current=@([SunshineDisplays]::List())
  foreach($item in @($before | Where-Object {$_.Active -and -not $_.Virtual})) {
   $same=@($current | Where-Object {$_.Name -eq $item.Name -and $_.Id -eq $item.Id})
@@ -75,14 +75,14 @@ try {
  Start-Sleep -Seconds 5
  $driver=Get-CimInstance Win32_PnPEntity | Where-Object PNPDeviceID -eq $driverId
  if($driver.ConfigManagerErrorCode -ne 0){throw "Virtual display driver failed to start with selected GPU (Windows problem code $($driver.ConfigManagerErrorCode))."}
- Check-Originals $before
+ Assert-OriginalDisplayLayout $before
  $attach=[SunshineDisplays]::AttachVirtual(0,0)
  if($attach -ne 0){throw "Windows rejected the selected virtual display: $attach"}
  Start-Sleep -Seconds 2
- Check-Originals $before
+ Assert-OriginalDisplayLayout $before
  Restart-Service SunshineService
  Start-Sleep -Seconds 8
- Check-Originals $before
+ Assert-OriginalDisplayLayout $before
  $log=Get-Content -LiteralPath $configuration.SunshineLogPath -Raw
  if($log -notmatch ([regex]::Escape("config: 'adapter_name' = "+$adapter))){throw 'Sunshine did not load the requested adapter setting.'}
  if($log -notmatch ([regex]::Escape('Device Description : '+$adapter))){throw 'Sunshine could not capture using the selected GPU.'}
@@ -114,7 +114,7 @@ try {
     if($rollback.OriginalTopology -ne 0){throw 'Windows could not restore the saved original monitor layout.'}
     $rollback.VirtualActivation=[SunshineDisplays]::AttachVirtual(0,0)
    }
-   Check-Originals $before
+   Assert-OriginalDisplayLayout $before
    Restart-Service SunshineService
    $rollback.Restored=$true
   }catch{$rollback.Error=$_.Exception.Message;$rollback.Restored=$false}

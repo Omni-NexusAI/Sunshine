@@ -15,8 +15,8 @@ $retryAfter=[datetime]::MinValue
 $lastState=''
 $script:history=New-SessionHistory
 function Problem($id){(Get-PnpDeviceProperty -InstanceId $id -KeyName DEVPKEY_Device_ProblemCode -ErrorAction Stop).Data}
-function Session-State { Get-SunshineSessionState -Configuration $configuration -History $script:history }
-function VD-Connected {
+function Get-CurrentSession { Get-SunshineSessionState -Configuration $configuration -History $script:history }
+function Test-PreferredConnection {
  $streamers=@(Get-Process 'VirtualDesktop.Streamer' -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Id)
  if(-not $vd -or $streamers.Count -eq 0){return $false}
  return @((Get-NetTCPConnection -LocalPort $configuration.VirtualDesktopPort -State Established -ErrorAction SilentlyContinue) | Where-Object {$_.OwningProcess -in $streamers}).Count -gt 0
@@ -27,7 +27,7 @@ try {
   try {
    try{$held=$mutex.WaitOne($(if($Once){5000}else{0}))}catch [Threading.AbandonedMutexException]{$held=$true}
    if(-not $held){if($Once){throw 'The display controller is busy; no observation or mutation was performed.'};Start-Sleep -Seconds $configuration.PollSeconds;continue}
-   $session=Session-State
+   $session=Get-CurrentSession
    $outputs=@([SunshineDisplays]::List())
    # A stopped handoff may leave MTT disabled even after another desktop appeared.
    if((Problem $mtt) -eq 22 -and -not $ObserveOnly){
@@ -53,7 +53,7 @@ try {
    $grace=$configuration.IdleGraceSeconds
    if($session.LastEvent -eq 'DISCONNECTED'){${grace}=$configuration.DisconnectGraceSeconds}
    $settled=$activeSince -and ((Get-Date)-$activeSince).TotalSeconds -ge $grace -and (Get-Date) -ge $retryAfter
-   $decision=Get-DisplayDecision -Session $session -ManagedActive $activeMTT.Count -OtherActive $other.Count -PreferredConnected (VD-Connected) -Settled ([bool]$settled)
+   $decision=Get-DisplayDecision -Session $session -ManagedActive $activeMTT.Count -OtherActive $other.Count -PreferredConnected (Test-PreferredConnection) -Settled ([bool]$settled)
    if(-not $session.Known){$action='Session state uncertain; preserving all screens'}
    elseif($session.Count -gt 0 -or $session.Starting){$action='Moonlight session or startup; preserving its capture screen'}
    elseif($decision -eq 'Settle'){$action='Allowing display and stream startup to settle'}
@@ -66,7 +66,7 @@ try {
       [SunshineDisplays]::SaveTopology((Join-Path $recovery 'before.bin'))
 
       try{
-       $confirm=Session-State
+       $confirm=Get-CurrentSession
        if(-not $confirm.Known -or $confirm.Count -gt 0 -or $confirm.Starting){throw 'Moonlight is starting; delaying the Virtual Desktop handoff.'}
        Disable-PnpDevice -InstanceId $mtt -Confirm:$false
        if((Problem $vd) -eq 22){Enable-PnpDevice -InstanceId $vd -Confirm:$false}
@@ -78,7 +78,7 @@ try {
        if(-not $vdActive){throw 'Virtual Desktop has no active display.'}
        [SunshineDisplays]::SaveOriginalTopology((Join-Path $recovery 'vd.bin'))
        if((Problem $mtt) -eq 22){Enable-PnpDevice -InstanceId $mtt -Confirm:$false}
-       $finalCheck=Session-State
+       $finalCheck=Get-CurrentSession
        if(-not $finalCheck.Known -or $finalCheck.Count -gt 0 -or $finalCheck.Starting){
         $action='Moonlight starting during handoff; preserving the capture topology'
        }else{
@@ -87,7 +87,7 @@ try {
        }
       }catch{
        if((Problem $mtt) -eq 22){Enable-PnpDevice -InstanceId $mtt -Confirm:$false;Start-Sleep -Seconds 2}
-       $rollbackCheck=Session-State
+       $rollbackCheck=Get-CurrentSession
        $restore=0
        if($rollbackCheck.Known -and $rollbackCheck.Count -eq 0 -and -not $rollbackCheck.Starting){$restore=[SunshineDisplays]::RestoreTopology((Join-Path $recovery 'before.bin'))}
        if(-not @([SunshineDisplays]::List() | Where-Object Active).Count){$restore=[SunshineDisplays]::AttachVirtual(0,0)}
@@ -99,7 +99,7 @@ try {
     }elseif($other.Count -gt 0){
      $action='Parking unused Moonlight screens; preserving existing desktop'
      if(-not $ObserveOnly){
-      $confirm=Session-State
+      $confirm=Get-CurrentSession
       if(-not $confirm.Known -or $confirm.Count -gt 0 -or $confirm.Starting){throw 'Moonlight is starting; no idle parking change made.'}
       $park=[SunshineDisplays]::ParkVirtualDisplays()
       if($park -ne 0){throw "Windows rejected idle display parking: $park"}

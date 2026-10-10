@@ -30,7 +30,6 @@ $fixtureName = 'Test-HostDiscovery-{0}-{1}' -f $PID, ([guid]::NewGuid().ToString
 $fixtureRoot = Join-Path $scratchRoot $fixtureName
 $modulePath = Join-Path $packageRoot 'HostDiscovery.psm1'
 $managedCaptureId = '{f179c550-a2e7-42b4-87d5-000000000137}'
-$secondManagedCaptureId = '{fa8b43ad-9b31-432c-a8cc-000000000137}'
 $physicalCaptureId = '{05f9cba1-f90f-4c56-b2c9-00000000beef}'
 $hostDiscoveryModule = $null
 $originalPathWritableFunction = $null
@@ -83,6 +82,7 @@ function Write-FixtureText {
 }
 
 function New-ProviderRecord {
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Constructs an in-memory synthetic provider record and performs no state change.')]
     param(
         [string] $InstanceId,
         [string[]] $HardwareIds,
@@ -102,16 +102,19 @@ function New-ProviderRecord {
 }
 
 function New-ManagedRecord {
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Constructs an in-memory synthetic managed-provider record and performs no state change.')]
     param([string] $InstanceId)
     return (New-ProviderRecord -InstanceId $InstanceId -HardwareIds @('ROOT\MTTVDD') -Provider 'MikeTheTech' -Manufacturer 'MikeTheTech' -Name 'Virtual Display Driver by MTT' -ProblemCode 0)
 }
 
 function New-VirtualDesktopRecord {
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Constructs an in-memory synthetic Virtual Desktop record and performs no state change.')]
     param([string] $InstanceId)
     return (New-ProviderRecord -InstanceId $InstanceId -HardwareIds @('ROOT\VDVMD') -Provider 'Virtual Desktop, Inc.' -Manufacturer 'Virtual Desktop' -Name 'Virtual Desktop Monitor' -ProblemCode 0)
 }
 
 function New-DisplayJson {
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Constructs an in-memory synthetic display record and performs no state change.')]
     param(
         [string] $DeviceId,
         [string] $FriendlyName,
@@ -135,6 +138,7 @@ function Write-SunshineEnumerationLog {
 }
 
 function New-SyntheticSunshineHost {
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Creates only uniquely owned offline test fixtures below the suite scratch directory.')]
     param(
         [string] $Name,
         [string] $ConfiguredCaptureId,
@@ -177,7 +181,7 @@ if (Test-Path -LiteralPath $fixtureRoot) {
 [void](New-Item -ItemType Directory -Path $fixtureRoot)
 
 try {
-    Assert-True (Test-Path -LiteralPath $modulePath -PathType Leaf) ('Missing discovery module: ' + $modulePath)
+    Assert-True -Condition (Test-Path -LiteralPath $modulePath -PathType Leaf) -Message ('Missing discovery module: ' + $modulePath)
     $hostDiscoveryModule = Import-Module -Name $modulePath -Force -PassThru
     $originalPathWritableFunction = & $hostDiscoveryModule {
         return (Get-Command Test-PathWritableByStandardUsers -CommandType Function).ScriptBlock
@@ -205,10 +209,10 @@ try {
     $installedMockText = & $hostDiscoveryModule {
         return (Get-Command Test-PathWritableByStandardUsers -CommandType Function).ScriptBlock.ToString()
     }
-    Assert-True ($installedMockText -match 'HostDiscoveryTestFixtureRoot') 'Module-scoped ACL mock was not installed.'
+    Assert-True -Condition ($installedMockText -match 'HostDiscoveryTestFixtureRoot') -Message 'Module-scoped ACL mock was not installed.'
     $pathWritableMockInstalled = $true
 
-    Invoke-TestCase 'Required host-discovery exports are present' {
+    Invoke-TestCase -Name 'Required host-discovery exports are present' -Body {
         $expected = @(
             'Resolve-DisplayProvider',
             'Test-KnownDisplayProvider',
@@ -216,11 +220,11 @@ try {
             'Get-DisplayHostConfiguration'
         )
         foreach ($command in $expected) {
-            Assert-True ($hostDiscoveryModule.ExportedCommands.ContainsKey($command)) ('Missing module export: ' + $command)
+            Assert-True -Condition ($hostDiscoveryModule.ExportedCommands.ContainsKey($command)) -Message ('Missing module export: ' + $command)
         }
     }
 
-    Invoke-TestCase 'ACL mock refuses every path outside the exact synthetic fixture root' {
+    Invoke-TestCase -Name 'ACL mock refuses every path outside the exact synthetic fixture root' -Body {
         $outsidePath = Join-Path ([Environment]::GetFolderPath([Environment+SpecialFolder]::Windows)) 'System32'
         $caught = $null
         try {
@@ -228,89 +232,89 @@ try {
         } catch {
             $caught = $_.Exception
         }
-        Assert-True ($null -ne $caught) 'ACL mock accepted a live path outside the fixture root.'
-        Assert-True ($caught.Message -match 'outside its synthetic fixture root') 'ACL mock refusal was not explicit.'
+        Assert-True -Condition ($null -ne $caught) -Message 'ACL mock accepted a live path outside the fixture root.'
+        Assert-True -Condition ($caught.Message -match 'outside its synthetic fixture root') -Message 'ACL mock refusal was not explicit.'
     }
 
-    Invoke-TestCase 'Known managed provider requires MTT hardware and provider identity' {
+    Invoke-TestCase -Name 'Known managed provider requires MTT hardware and provider identity' -Body {
         $known = New-ManagedRecord 'ROOT\DISPLAY\CURRENT-MANAGED-A7'
-        Assert-True (Test-KnownDisplayProvider -Record $known -Role Managed) 'Known MTT provider was rejected.'
+        Assert-True -Condition (Test-KnownDisplayProvider -Record $known -Role Managed) -Message 'Known MTT provider was rejected.'
         $wrongProvider = New-ProviderRecord -InstanceId 'ROOT\DISPLAY\CURRENT-MANAGED-B8' -HardwareIds @('ROOT\MTTVDD') -Provider 'Unrelated Vendor' -Manufacturer 'Unrelated Vendor' -Name 'Virtual Display' -ProblemCode 0
-        Assert-False (Test-KnownDisplayProvider -Record $wrongProvider -Role Managed) 'Non-MTT provider was accepted as managed.'
+        Assert-False -Condition (Test-KnownDisplayProvider -Record $wrongProvider -Role Managed) -Message 'Non-MTT provider was accepted as managed.'
         $physical = New-ProviderRecord -InstanceId 'PCI\VEN_10DE&DEV_FAKE' -HardwareIds @('PCI\VEN_10DE&DEV_FAKE') -Provider 'NVIDIA' -Manufacturer 'NVIDIA' -Name 'Physical GPU' -ProblemCode 0
-        Assert-False (Test-KnownDisplayProvider -Record $physical -Role Managed) 'Physical PCI device was accepted as managed.'
+        Assert-False -Condition (Test-KnownDisplayProvider -Record $physical -Role Managed) -Message 'Physical PCI device was accepted as managed.'
     }
 
-    Invoke-TestCase 'Known Virtual Desktop provider excludes lookalike providers' {
+    Invoke-TestCase -Name 'Known Virtual Desktop provider excludes lookalike providers' -Body {
         $known = New-VirtualDesktopRecord 'ROOT\DISPLAY\CURRENT-VD-C9'
-        Assert-True (Test-KnownDisplayProvider -Record $known -Role VirtualDesktop) 'Known Virtual Desktop provider was rejected.'
+        Assert-True -Condition (Test-KnownDisplayProvider -Record $known -Role VirtualDesktop) -Message 'Known Virtual Desktop provider was rejected.'
         $meta = New-ProviderRecord -InstanceId 'ROOT\DISPLAY\CURRENT-VD-D0' -HardwareIds @('ROOT\VDVMD') -Provider 'Meta' -Manufacturer 'Virtual Desktop' -Name 'Virtual Desktop Monitor' -ProblemCode 0
-        Assert-False (Test-KnownDisplayProvider -Record $meta -Role VirtualDesktop) 'Excluded Meta provider was accepted as Virtual Desktop.'
+        Assert-False -Condition (Test-KnownDisplayProvider -Record $meta -Role VirtualDesktop) -Message 'Excluded Meta provider was accepted as Virtual Desktop.'
     }
 
-    Invoke-TestCase 'Arbitrary current ROOT instance ID resolves without hardcoded identity' {
+    Invoke-TestCase -Name 'Arbitrary current ROOT instance ID resolves without hardcoded identity' -Body {
         $currentId = 'ROOT\DISPLAY\HOST-GENERATED-7F31'
         $managed = New-ManagedRecord $currentId
         $resolved = Resolve-DisplayProvider -Role Managed -Records @($managed) -ExplicitId $currentId.ToLowerInvariant()
-        Assert-True $resolved.Resolved 'Injected current ROOT instance ID did not resolve.'
-        Assert-Equal $currentId $resolved.Device.InstanceId 'Resolved device identity was replaced or hardcoded.'
+        Assert-True -Condition $resolved.Resolved -Message 'Injected current ROOT instance ID did not resolve.'
+        Assert-Equal -Expected $currentId -Actual $resolved.Device.InstanceId -Message 'Resolved device identity was replaced or hardcoded.'
     }
 
-    Invoke-TestCase 'Ambiguous managed providers require explicit current ID' {
+    Invoke-TestCase -Name 'Ambiguous managed providers require explicit current ID' -Body {
         $first = New-ManagedRecord 'ROOT\DISPLAY\DYNAMIC-ONE'
         $second = New-ManagedRecord 'ROOT\DISPLAY\DYNAMIC-TWO'
         $ambiguous = Resolve-DisplayProvider -Role Managed -Records @($first, $second)
-        Assert-False $ambiguous.Resolved 'Ambiguous managed providers resolved implicitly.'
-        Assert-Equal 2 @($ambiguous.Candidates).Count 'Ambiguous candidate count mismatch.'
-        Assert-True ($ambiguous.Error -match 'Multiple tested Managed') 'Ambiguity error was not specific.'
+        Assert-False -Condition $ambiguous.Resolved -Message 'Ambiguous managed providers resolved implicitly.'
+        Assert-Equal -Expected 2 -Actual @($ambiguous.Candidates).Count -Message 'Ambiguous candidate count mismatch.'
+        Assert-True -Condition ($ambiguous.Error -match 'Multiple tested Managed') -Message 'Ambiguity error was not specific.'
         $explicit = Resolve-DisplayProvider -Role Managed -Records @($first, $second) -ExplicitId $second.InstanceId
-        Assert-True $explicit.Resolved 'Explicit current ID did not resolve ambiguity.'
-        Assert-Equal $second.InstanceId $explicit.Device.InstanceId 'Explicit provider selected the wrong record.'
+        Assert-True -Condition $explicit.Resolved -Message 'Explicit current ID did not resolve ambiguity.'
+        Assert-Equal -Expected $second.InstanceId -Actual $explicit.Device.InstanceId -Message 'Explicit provider selected the wrong record.'
     }
 
-    Invoke-TestCase 'Unsupported explicit and non-MTT explicit devices are rejected' {
+    Invoke-TestCase -Name 'Unsupported explicit and non-MTT explicit devices are rejected' -Body {
         $managed = New-ManagedRecord 'ROOT\DISPLAY\KNOWN-MTT'
         $impostor = New-ProviderRecord -InstanceId 'ROOT\DISPLAY\NOT-MTT' -HardwareIds @('ROOT\MTTVDD') -Provider 'Unknown Provider' -Manufacturer 'Unknown' -Name 'Display' -ProblemCode 0
         $records = @($managed, $impostor)
         $missing = Resolve-DisplayProvider -Role Managed -Records $records -ExplicitId 'ROOT\DISPLAY\ABSENT'
-        Assert-False $missing.Resolved 'Absent explicit provider resolved.'
-        Assert-True ($missing.Error -match 'not found uniquely') 'Absent explicit provider error mismatch.'
+        Assert-False -Condition $missing.Resolved -Message 'Absent explicit provider resolved.'
+        Assert-True -Condition ($missing.Error -match 'not found uniquely') -Message 'Absent explicit provider error mismatch.'
         $rejected = Resolve-DisplayProvider -Role Managed -Records $records -ExplicitId $impostor.InstanceId
-        Assert-False $rejected.Resolved 'Explicit non-MTT provider resolved.'
-        Assert-True ($rejected.Error -match 'does not match') 'Non-MTT explicit rejection error mismatch.'
+        Assert-False -Condition $rejected.Resolved -Message 'Explicit non-MTT provider resolved.'
+        Assert-True -Condition ($rejected.Error -match 'does not match') -Message 'Non-MTT explicit rejection error mismatch.'
     }
 
-    Invoke-TestCase 'Absent Virtual Desktop provider is valid when optional' {
+    Invoke-TestCase -Name 'Absent Virtual Desktop provider is valid when optional' -Body {
         $resolved = Resolve-DisplayProvider -Role VirtualDesktop -Records @() -Optional
-        Assert-True $resolved.Resolved 'Optional absent Virtual Desktop provider should resolve.'
-        Assert-True ($null -eq $resolved.Device) 'Optional absent provider returned a device.'
-        Assert-Equal 0 @($resolved.Candidates).Count 'Optional absent provider returned candidates.'
+        Assert-True -Condition $resolved.Resolved -Message 'Optional absent Virtual Desktop provider should resolve.'
+        Assert-True -Condition ($null -eq $resolved.Device) -Message 'Optional absent provider returned a device.'
+        Assert-Equal -Expected 0 -Actual @($resolved.Candidates).Count -Message 'Optional absent provider returned candidates.'
     }
 
-    Invoke-TestCase 'Sunshine log enumeration parses normalized MTT UUID and physical display' {
+    Invoke-TestCase -Name 'Sunshine log enumeration parses normalized MTT UUID and physical display' -Body {
         $path = Join-Path $fixtureRoot 'enumeration.log'
         $mtt = New-DisplayJson -DeviceId $managedCaptureId.ToUpperInvariant() -FriendlyName 'VDD by MTT' -ManufacturerId 'MTT' -ProductCode '1337' -DisplayName '\\.\DISPLAY137'
         $physical = New-DisplayJson -DeviceId $physicalCaptureId -FriendlyName 'Physical Monitor' -ManufacturerId 'DEL' -ProductCode '4098' -DisplayName '\\.\DISPLAY1'
         Write-SunshineEnumerationLog -Path $path -Displays @($mtt, $physical)
         $records = @(Get-SunshineDisplayEnumeration -LogPath $path)
-        Assert-Equal 2 $records.Count 'Display enumeration count mismatch.'
-        Assert-Equal $managedCaptureId $records[0].DeviceId 'MTT capture UUID was not normalized.'
-        Assert-Equal 'MTT' $records[0].ManufacturerId 'MTT manufacturer ID mismatch.'
-        Assert-Equal '1337' $records[0].ProductCode 'MTT product code mismatch.'
-        Assert-Equal $physicalCaptureId $records[1].DeviceId 'Physical capture UUID mismatch.'
+        Assert-Equal -Expected 2 -Actual $records.Count -Message 'Display enumeration count mismatch.'
+        Assert-Equal -Expected $managedCaptureId -Actual $records[0].DeviceId -Message 'MTT capture UUID was not normalized.'
+        Assert-Equal -Expected 'MTT' -Actual $records[0].ManufacturerId -Message 'MTT manufacturer ID mismatch.'
+        Assert-Equal -Expected '1337' -Actual $records[0].ProductCode -Message 'MTT product code mismatch.'
+        Assert-Equal -Expected $physicalCaptureId -Actual $records[1].DeviceId -Message 'Physical capture UUID mismatch.'
     }
 
-    Invoke-TestCase 'Latest incomplete enumeration falls back to prior complete JSON' {
+    Invoke-TestCase -Name 'Latest incomplete enumeration falls back to prior complete JSON' -Body {
         $path = Join-Path $fixtureRoot 'enumeration-fallback.log'
         $mtt = New-DisplayJson -DeviceId $managedCaptureId -FriendlyName 'VDD by MTT' -ManufacturerId 'MTT' -ProductCode '1337' -DisplayName '\\.\DISPLAY137'
         Write-SunshineEnumerationLog -Path $path -Displays @($mtt)
         [System.IO.File]::AppendAllText($path, "[2026-10-10 12:01:00.000]: Info: Currently available display devices:`r`n[{`"device_id`":", $utf8NoBom)
         $records = @(Get-SunshineDisplayEnumeration -LogPath $path)
-        Assert-Equal 1 $records.Count 'Complete earlier enumeration was not recovered.'
-        Assert-Equal $managedCaptureId $records[0].DeviceId 'Fallback returned the wrong enumeration.'
+        Assert-Equal -Expected 1 -Actual $records.Count -Message 'Complete earlier enumeration was not recovered.'
+        Assert-Equal -Expected $managedCaptureId -Actual $records[0].DeviceId -Message 'Fallback returned the wrong enumeration.'
     }
 
-    Invoke-TestCase 'Mocked host discovery preserves arbitrary provider IDs and validates MTT capture' {
+    Invoke-TestCase -Name 'Mocked host discovery preserves arbitrary provider IDs and validates MTT capture' -Body {
         $mtt = New-DisplayJson -DeviceId $managedCaptureId -FriendlyName 'VDD by MTT' -ManufacturerId 'MTT' -ProductCode '1337' -DisplayName '\\.\DISPLAY137'
         $physical = New-DisplayJson -DeviceId $physicalCaptureId -FriendlyName 'Physical Monitor' -ManufacturerId 'DEL' -ProductCode '4098' -DisplayName '\\.\DISPLAY1'
         $fixtureHost = New-SyntheticSunshineHost -Name 'valid-host' -ConfiguredCaptureId $managedCaptureId -Displays @($mtt, $physical)
@@ -319,36 +323,36 @@ try {
         $pnp = @((New-ManagedRecord $managedId), (New-VirtualDesktopRecord $virtualDesktopId))
         $gpus = @([pscustomobject]@{ PNPDeviceID = 'PCI\VEN_10DE&DEV_TEST'; Name = 'NVIDIA GeForce Test GPU' })
         $result = Get-DisplayHostConfiguration -PnpRecords $pnp -VideoControllers $gpus -SunshineService $fixtureHost.Service -VddSettingsPath $fixtureHost.VddPath
-        Assert-True $result.ReadyForInstall ('Synthetic valid host was blocked: ' + (@($result.BlockingReasons) -join '; '))
-        Assert-True $result.CaptureTargetValidated 'MTT capture target was not validated.'
-        Assert-Equal $managedId $result.HostConfiguration.ManagedDriverId 'Managed runtime ID was not preserved.'
-        Assert-Equal $virtualDesktopId $result.HostConfiguration.VirtualDesktopDriverId 'Virtual Desktop runtime ID was not preserved.'
-        Assert-Equal 'NVIDIA GeForce Test GPU' $result.PhysicalGpuNames[0] 'Injected physical GPU audit record mismatch.'
+        Assert-True -Condition $result.ReadyForInstall -Message ('Synthetic valid host was blocked: ' + (@($result.BlockingReasons) -join '; '))
+        Assert-True -Condition $result.CaptureTargetValidated -Message 'MTT capture target was not validated.'
+        Assert-Equal -Expected $managedId -Actual $result.HostConfiguration.ManagedDriverId -Message 'Managed runtime ID was not preserved.'
+        Assert-Equal -Expected $virtualDesktopId -Actual $result.HostConfiguration.VirtualDesktopDriverId -Message 'Virtual Desktop runtime ID was not preserved.'
+        Assert-Equal -Expected 'NVIDIA GeForce Test GPU' -Actual $result.PhysicalGpuNames[0] -Message 'Injected physical GPU audit record mismatch.'
     }
 
-    Invoke-TestCase 'Mocked host discovery permits absent optional Virtual Desktop provider' {
+    Invoke-TestCase -Name 'Mocked host discovery permits absent optional Virtual Desktop provider' -Body {
         $mtt = New-DisplayJson -DeviceId $managedCaptureId -FriendlyName 'VDD by MTT' -ManufacturerId 'MTT' -ProductCode '1337' -DisplayName '\\.\DISPLAY137'
         $fixtureHost = New-SyntheticSunshineHost -Name 'no-vd-host' -ConfiguredCaptureId $managedCaptureId -Displays @($mtt)
         $result = Get-DisplayHostConfiguration -PnpRecords @((New-ManagedRecord 'ROOT\DISPLAY\ONLY-MTT-55')) -VideoControllers @() -SunshineService $fixtureHost.Service -VddSettingsPath $fixtureHost.VddPath
-        Assert-True $result.VirtualDesktopProvider.Resolved 'Absent optional Virtual Desktop provider blocked discovery.'
-        Assert-True ($null -eq $result.VirtualDesktopProvider.Device) 'Absent optional Virtual Desktop provider returned a device.'
-        Assert-True $result.ReadyForInstall ('Optional provider absence unexpectedly blocked install: ' + (@($result.BlockingReasons) -join '; '))
+        Assert-True -Condition $result.VirtualDesktopProvider.Resolved -Message 'Absent optional Virtual Desktop provider blocked discovery.'
+        Assert-True -Condition ($null -eq $result.VirtualDesktopProvider.Device) -Message 'Absent optional Virtual Desktop provider returned a device.'
+        Assert-True -Condition $result.ReadyForInstall -Message ('Optional provider absence unexpectedly blocked install: ' + (@($result.BlockingReasons) -join '; '))
     }
 
-    Invoke-TestCase 'Multiple MTT adapters block full host discovery even with explicit provider ID' {
+    Invoke-TestCase -Name 'Multiple MTT adapters block full host discovery even with explicit provider ID' -Body {
         $mtt = New-DisplayJson -DeviceId $managedCaptureId -FriendlyName 'VDD by MTT' -ManufacturerId 'MTT' -ProductCode '1337' -DisplayName '\\.\DISPLAY137'
         $fixtureHost = New-SyntheticSunshineHost -Name 'ambiguous-host' -ConfiguredCaptureId $managedCaptureId -Displays @($mtt)
         $firstId = 'ROOT\DISPLAY\AMBIGUOUS-A'
         $secondId = 'ROOT\DISPLAY\AMBIGUOUS-B'
         $pnp = @((New-ManagedRecord $firstId), (New-ManagedRecord $secondId))
         $result = Get-DisplayHostConfiguration -PnpRecords $pnp -VideoControllers @() -SunshineService $fixtureHost.Service -ManagedDriverId $secondId -VddSettingsPath $fixtureHost.VddPath
-        Assert-True $result.ManagedProvider.Resolved 'Pure provider resolution did not honor the explicit current ID.'
-        Assert-Equal $secondId $result.ManagedProvider.Device.InstanceId 'Explicit provider ID selected the wrong MTT record.'
-        Assert-False $result.ReadyForInstall 'Multiple MTT adapters did not block full host discovery.'
-        Assert-True ((@($result.BlockingReasons) -join ' ') -match 'Native MTT1337 output isolation') 'Native multi-MTT ambiguity was not reported.'
+        Assert-True -Condition $result.ManagedProvider.Resolved -Message 'Pure provider resolution did not honor the explicit current ID.'
+        Assert-Equal -Expected $secondId -Actual $result.ManagedProvider.Device.InstanceId -Message 'Explicit provider ID selected the wrong MTT record.'
+        Assert-False -Condition $result.ReadyForInstall -Message 'Multiple MTT adapters did not block full host discovery.'
+        Assert-True -Condition ((@($result.BlockingReasons) -join ' ') -match 'Native MTT1337 output isolation') -Message 'Native multi-MTT ambiguity was not reported.'
     }
 
-    Invoke-TestCase 'Protected ACL gate blocks a standard-user-writable synthetic config' {
+    Invoke-TestCase -Name 'Protected ACL gate blocks a standard-user-writable synthetic config' -Body {
         $mtt = New-DisplayJson -DeviceId $managedCaptureId -FriendlyName 'VDD by MTT' -ManufacturerId 'MTT' -ProductCode '1337' -DisplayName '\\.\DISPLAY137'
         $fixtureHost = New-SyntheticSunshineHost -Name 'writable-config-host' -ConfiguredCaptureId $managedCaptureId -Displays @($mtt)
         try {
@@ -357,31 +361,31 @@ try {
                 $script:HostDiscoveryTestWritablePath = [System.IO.Path]::GetFullPath($WritablePath).TrimEnd('\')
             } $fixtureHost.ConfigPath
             $result = Get-DisplayHostConfiguration -PnpRecords @((New-ManagedRecord 'ROOT\DISPLAY\ACL-MTT')) -VideoControllers @() -SunshineService $fixtureHost.Service -VddSettingsPath $fixtureHost.VddPath
-            Assert-False $result.ReadyForInstall 'Writable synthetic config did not block installation readiness.'
-            Assert-True ((@($result.BlockingReasons) -join ' ') -match 'configuration is writable by standard users') 'Protected config ACL rejection was not reported.'
+            Assert-False -Condition $result.ReadyForInstall -Message 'Writable synthetic config did not block installation readiness.'
+            Assert-True -Condition ((@($result.BlockingReasons) -join ' ') -match 'configuration is writable by standard users') -Message 'Protected config ACL rejection was not reported.'
         } finally {
             & $hostDiscoveryModule { $script:HostDiscoveryTestWritablePath = $null }
         }
     }
 
-    Invoke-TestCase 'Physical capture target cannot satisfy managed MTT capture validation' {
+    Invoke-TestCase -Name 'Physical capture target cannot satisfy managed MTT capture validation' -Body {
         $mtt = New-DisplayJson -DeviceId $managedCaptureId -FriendlyName 'VDD by MTT' -ManufacturerId 'MTT' -ProductCode '1337' -DisplayName '\\.\DISPLAY137'
         $physical = New-DisplayJson -DeviceId $physicalCaptureId -FriendlyName 'Physical Monitor' -ManufacturerId 'DEL' -ProductCode '4098' -DisplayName '\\.\DISPLAY1'
         $fixtureHost = New-SyntheticSunshineHost -Name 'physical-capture-host' -ConfiguredCaptureId $physicalCaptureId -Displays @($mtt, $physical)
         $result = Get-DisplayHostConfiguration -PnpRecords @((New-ManagedRecord 'ROOT\DISPLAY\MTT-FOR-CAPTURE')) -VideoControllers @() -SunshineService $fixtureHost.Service -VddSettingsPath $fixtureHost.VddPath
-        Assert-False $result.CaptureTargetValidated 'Physical display was accepted as the managed capture target.'
-        Assert-False $result.ReadyForInstall 'Physical capture target did not block installation readiness.'
-        Assert-True ((@($result.BlockingReasons) -join ' ') -match 'not a unique logged MTT1337 display') 'Physical capture rejection reason mismatch.'
+        Assert-False -Condition $result.CaptureTargetValidated -Message 'Physical display was accepted as the managed capture target.'
+        Assert-False -Condition $result.ReadyForInstall -Message 'Physical capture target did not block installation readiness.'
+        Assert-True -Condition ((@($result.BlockingReasons) -join ' ') -match 'not a unique logged MTT1337 display') -Message 'Physical capture rejection reason mismatch.'
     }
 
-    Invoke-TestCase 'Explicit physical capture UUID cannot override managed capture requirement' {
+    Invoke-TestCase -Name 'Explicit physical capture UUID cannot override managed capture requirement' -Body {
         $mtt = New-DisplayJson -DeviceId $managedCaptureId -FriendlyName 'VDD by MTT' -ManufacturerId 'MTT' -ProductCode '1337' -DisplayName '\\.\DISPLAY137'
         $physical = New-DisplayJson -DeviceId $physicalCaptureId -FriendlyName 'Physical Monitor' -ManufacturerId 'DEL' -ProductCode '4098' -DisplayName '\\.\DISPLAY1'
         $fixtureHost = New-SyntheticSunshineHost -Name 'physical-override-host' -ConfiguredCaptureId $managedCaptureId -Displays @($mtt, $physical)
         $result = Get-DisplayHostConfiguration -PnpRecords @((New-ManagedRecord 'ROOT\DISPLAY\MTT-FOR-OVERRIDE')) -VideoControllers @() -SunshineService $fixtureHost.Service -CaptureDisplayId $physicalCaptureId -VddSettingsPath $fixtureHost.VddPath
-        Assert-False $result.CaptureTargetValidated 'Explicit physical capture UUID bypassed managed capture validation.'
-        Assert-False $result.ReadyForInstall 'Explicit physical capture UUID did not block readiness.'
-        Assert-Equal $physicalCaptureId $result.EffectiveCaptureDisplayId 'Explicit capture UUID was not evaluated.'
+        Assert-False -Condition $result.CaptureTargetValidated -Message 'Explicit physical capture UUID bypassed managed capture validation.'
+        Assert-False -Condition $result.ReadyForInstall -Message 'Explicit physical capture UUID did not block readiness.'
+        Assert-Equal -Expected $physicalCaptureId -Actual $result.EffectiveCaptureDisplayId -Message 'Explicit capture UUID was not evaluated.'
     }
 } finally {
     if ($pathWritableMockInstalled -and $null -ne $hostDiscoveryModule -and $null -ne $originalPathWritableFunction) {

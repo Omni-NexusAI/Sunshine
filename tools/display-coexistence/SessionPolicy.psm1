@@ -2,15 +2,25 @@
 Set-StrictMode -Version 2
 
 function New-SessionHistory {
-    <# .SYNOPSIS Creates bounded incremental Sunshine session history. #>
+    <#
+    .SYNOPSIS
+    Creates bounded incremental Sunshine session history.
+    #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification='Constructs only in-memory session history; no system state changes occur.')]
+    [CmdletBinding()]
+    [OutputType([hashtable])]
+    param()
     return @{ Pid = 0; Offset = 0L; Count = 0; Pending = ''; Creation = [datetime]::MinValue; Uncertain = $false; LastEvent = ''; ProcessBound = $false }
 }
 
 function Read-SessionHistory {
-    <# .SYNOPSIS Reads complete client records, preserving uncertainty after a log reset.
+    <#
+    .SYNOPSIS
+    Reads complete client records, preserving uncertainty after a log reset.
        .PARAMETER History Mutable state belonging to one controller process.
        .PARAMETER LogPath Sunshine's existing log, not a client-supplied file.
-       .PARAMETER ProcessId Current Sunshine process identity. #>
+       .PARAMETER ProcessId Current Sunshine process identity.
+    #>
     param([hashtable]$History, [string]$LogPath, [int]$ProcessId, [datetime]$ProcessStartTime = [datetime]::MinValue)
     if (-not (Test-Path -LiteralPath $LogPath -PathType Leaf)) { return @{ Known = $false; Count = 0; LastEvent = '' } }
     $info = Get-Item -LiteralPath $LogPath
@@ -38,8 +48,8 @@ function Read-SessionHistory {
                     $History.ProcessBound = ($stamp -ge $ProcessStartTime.AddSeconds(-1) -and $stamp -le $ProcessStartTime.AddSeconds(35) -and $info.LastWriteTimeUtc -ge $ProcessStartTime.ToUniversalTime())
                 }
             }
-            foreach ($event in [regex]::Matches($complete, '(?m)^\[[^\r\n]+\]: Info: CLIENT (CONNECTED|DISCONNECTED)\r?$')) {
-                $History.LastEvent = $event.Groups[1].Value
+            foreach ($clientEvent in [regex]::Matches($complete, '(?m)^\[[^\r\n]+\]: Info: CLIENT (CONNECTED|DISCONNECTED)\r?$')) {
+                $History.LastEvent = $clientEvent.Groups[1].Value
                 if ($History.LastEvent -eq 'CONNECTED') { $History.Count++ }
                 elseif ($History.Count -gt 0) { $History.Count-- }
                 else { $History.Uncertain = $true }
@@ -52,9 +62,12 @@ function Read-SessionHistory {
 }
 
 function Test-SessionLogConfiguration {
-    <# .SYNOPSIS Refuses idle evidence when Sunshine redirects logging or excludes Info client events.
+    <#
+    .SYNOPSIS
+    Refuses idle evidence when Sunshine redirects logging or excludes Info client events.
        .PARAMETER Configuration Discovered and protected host configuration.
-       .PARAMETER ConfigText Optional text injection for offline tests. #>
+       .PARAMETER ConfigText Optional text injection for offline tests.
+    #>
     param($Configuration, [AllowNull()][string]$ConfigText)
     if (-not $PSBoundParameters.ContainsKey('ConfigText')) { $ConfigText = [IO.File]::ReadAllText($Configuration.SunshineConfigPath, [Text.Encoding]::UTF8) }
     $levels = [regex]::Matches($ConfigText, '(?m)^\s*min_log_level\s*=\s*([^\r\n#]+)')
@@ -69,7 +82,10 @@ function Test-SessionLogConfiguration {
 }
 
 function Get-SunshineSessionState {
-    <# .SYNOPSIS Protects active streams and capture startup; RTSP is only a startup guard. #>
+    <#
+    .SYNOPSIS
+    Protects active streams and capture startup; RTSP is only a startup guard.
+    #>
     param($Configuration, [hashtable]$History, [switch]$DrainHistory, [ValidateRange(1,64)][int]$MaximumChunks = 16)
     $processes = @(Get-Process sunshine -ErrorAction SilentlyContinue)
     if ($processes.Count -eq 0) { return @{ Known = $true; Count = 0; Starting = $false; LastEvent = '' } }
@@ -90,13 +106,19 @@ function Get-SunshineSessionState {
 }
 
 function Test-SafeIdle {
-    <# .SYNOPSIS Requires positively known idle state before parking or restoring any desktop. #>
+    <#
+    .SYNOPSIS
+    Requires positively known idle state before parking or restoring any desktop.
+    #>
     param($Session)
     return ($Session.Known -and $Session.Count -eq 0 -and -not $Session.Starting)
 }
 
 function Get-DisplayDecision {
-    <# .SYNOPSIS Pure policy used by the controller and offline transition tests. #>
+    <#
+    .SYNOPSIS
+    Pure policy used by the controller and offline transition tests.
+    #>
     param($Session, [int]$ManagedActive, [int]$OtherActive, [bool]$PreferredConnected, [bool]$Settled)
     if (-not $Session.Known -or $Session.Count -gt 0 -or $Session.Starting) { return 'Preserve' }
     if ($ManagedActive -eq 0) { return 'Idle' }

@@ -42,6 +42,8 @@ function Get-ProtectedFileSecurity {
 }
 
 function Set-ProtectedFile {
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
+        Justification = 'This private helper runs only inside the explicit -Uninstall transaction and rollback boundary.')]
     param([Parameter(Mandatory = $true)][string]$Path)
     $null = Assert-SafePathChain -Path $Path
     if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { throw "Protected file does not exist: $Path" }
@@ -84,6 +86,8 @@ function Get-ProtectedDirectorySecurity {
 }
 
 function Set-ProtectedDirectory {
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
+        Justification = 'This private helper runs only inside the explicit -Uninstall transaction and rollback boundary.')]
     param([string]$Path)
     if (-not (Test-Path -LiteralPath $Path)) {
         $null = Assert-SafePathChain -Path (Split-Path $Path -Parent)
@@ -95,6 +99,8 @@ function Set-ProtectedDirectory {
 }
 
 function Set-FileSddl {
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
+        Justification = 'This private helper runs only inside the explicit -Uninstall transaction and rollback boundary.')]
     param([string]$Path, [string]$Sddl)
     $acl = Get-Acl -LiteralPath $Path
     $acl.SetSecurityDescriptorSddlForm($Sddl, [Security.AccessControl.AccessControlSections]::All)
@@ -195,6 +201,8 @@ function Assert-SafeIdleSession {
 }
 
 function Stop-TaskAndWait {
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
+        Justification = 'This private helper runs only inside the explicit -Uninstall transaction and rollback boundary.')]
     param([string]$TaskName)
     $task = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
     if ($null -eq $task -or $task.State -ne 'Running') { return }
@@ -206,7 +214,7 @@ function Stop-TaskAndWait {
     throw "Scheduled task did not stop: $TaskName"
 }
 
-function Get-ShortcutDetails {
+function Get-ShortcutDetail {
     param([string]$Path)
     $shell = New-Object -ComObject WScript.Shell
     $shortcut = $shell.CreateShortcut($Path)
@@ -390,7 +398,7 @@ try {
         $path = [string]$shortcut.Path
         if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { continue }
         try { $null = Assert-SafePathChain -Path $path } catch { $warnings.Add("Unsafe shortcut path was retained: $path - $($_.Exception.Message)"); continue }
-        $details = Get-ShortcutDetails -Path $path
+        $details = Get-ShortcutDetail -Path $path
         $managedScript = Get-TaskScriptPath $details.Arguments
         if ($details.TargetPath -ine [string]$manifest.Runtime -or $managedScript -ine (Join-Path $manifest.CodeDirectory 'GPU-Selector.ps1')) {
             $warnings.Add("Modified shortcut was retained: $path")

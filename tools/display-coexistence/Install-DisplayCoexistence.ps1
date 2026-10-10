@@ -95,6 +95,8 @@ function Get-ProtectedFileSecurity {
 }
 
 function Set-ProtectedDirectory {
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
+        Justification = 'This private helper runs only inside the explicit -Install transaction and rollback boundary.')]
     param([Parameter(Mandatory = $true)][string]$Path)
     if (-not (Test-Path -LiteralPath $Path)) {
         $null = Assert-SafePathChain -Path (Split-Path $Path -Parent)
@@ -106,6 +108,8 @@ function Set-ProtectedDirectory {
 }
 
 function Set-ProtectedFile {
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
+        Justification = 'This private helper runs only inside the explicit -Install transaction and rollback boundary.')]
     param([Parameter(Mandatory = $true)][string]$Path)
     $null = Assert-SafePathChain -Path $Path
     if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { throw "Protected file does not exist: $Path" }
@@ -150,6 +154,8 @@ function Get-FileSddl {
 }
 
 function Set-FileSddl {
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
+        Justification = 'This private helper runs only inside the explicit -Install transaction and rollback boundary.')]
     param([Parameter(Mandatory = $true)][string]$Path, [Parameter(Mandatory = $true)][string]$Sddl)
     $acl = Get-Acl -LiteralPath $Path
     $acl.SetSecurityDescriptorSddlForm($Sddl, [Security.AccessControl.AccessControlSections]::All)
@@ -220,6 +226,8 @@ function Test-LegacyTaskSnapshot {
 }
 
 function Set-TaskSecurityReadExecute {
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
+        Justification = 'This private helper runs only inside the explicit -Install transaction and rollback boundary.')]
     param([Parameter(Mandatory = $true)][string]$TaskName, [Parameter(Mandatory = $true)][Security.Principal.SecurityIdentifier]$UserSid)
     $scheduler = New-Object -ComObject 'Schedule.Service'; $scheduler.Connect()
     $task = $scheduler.GetFolder('\').GetTask($TaskName)
@@ -249,6 +257,8 @@ function Restore-TaskSnapshot {
 }
 
 function Stop-TaskAndWait {
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
+        Justification = 'This private helper runs only inside the explicit -Install transaction and rollback boundary.')]
     param([Parameter(Mandatory = $true)][string]$TaskName)
     $task = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
     if ($null -eq $task) { return }
@@ -281,16 +291,20 @@ function Assert-SafeIdleSession {
 }
 
 function Set-SunshineConfigValue {
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
+        Justification = 'This pure helper returns transformed text and does not change external state.')]
     param([Parameter(Mandatory = $true)][string]$Text, [Parameter(Mandatory = $true)][string]$Key, [Parameter(Mandatory = $true)][string]$Value)
     $pattern = '(?im)^(\s*)' + [regex]::Escape($Key) + '\s*=.*$'
-    $matches = [regex]::Matches($Text, $pattern)
-    if ($matches.Count -gt 1) { throw "Sunshine config key is duplicated: $Key" }
-    if ($matches.Count -eq 1) { return [regex]::Replace($Text, $pattern, ('$1' + $Key + ' = ' + $Value), 1) }
+    $configMatches = [regex]::Matches($Text, $pattern)
+    if ($configMatches.Count -gt 1) { throw "Sunshine config key is duplicated: $Key" }
+    if ($configMatches.Count -eq 1) { return [regex]::Replace($Text, $pattern, ('$1' + $Key + ' = ' + $Value), 1) }
     $separator = if ($Text.EndsWith("`n")) { '' } else { "`r`n" }
     return $Text + $separator + $Key + ' = ' + $Value + "`r`n"
 }
 
 function Update-SunshineConfig {
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
+        Justification = 'This private helper runs only inside the explicit -Install transaction and rollback boundary.')]
     param(
         [Parameter(Mandatory = $true)][string]$Path,
         [Parameter(Mandatory = $true)][object[]]$Changes,
@@ -335,7 +349,7 @@ function Register-CoexistenceTask {
     Register-ScheduledTask -TaskName $TaskName -Action $action -Principal $principal -Trigger $trigger -Settings $settings -Description 'Bounded Sunshine and Virtual Desktop display coexistence controller.' -Force | Out-Null
 }
 
-function Get-ShortcutDetails {
+function Get-ShortcutDetail {
     param([Parameter(Mandatory = $true)][string]$Path)
     $shell = New-Object -ComObject WScript.Shell
     $shortcut = $shell.CreateShortcut($Path)
@@ -343,6 +357,8 @@ function Get-ShortcutDetails {
 }
 
 function Set-GpuSelectorShortcut {
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
+        Justification = 'This private helper runs only inside the explicit -Install transaction and rollback boundary.')]
     param(
         [Parameter(Mandatory = $true)][string]$Path,
         [Parameter(Mandatory = $true)][string]$Runtime,
@@ -647,7 +663,7 @@ try {
         $sunshineDisposition = 'Created'
         $writeSunshineShortcut = $true
         if (Test-Path -LiteralPath $sunshineShortcut -PathType Leaf) {
-            $existingShortcut = Get-ShortcutDetails -Path $sunshineShortcut
+            $existingShortcut = Get-ShortcutDetail -Path $sunshineShortcut
             $existingScript = Get-TaskScriptPath $existingShortcut.Arguments
             if ($existingShortcut.TargetPath -ieq $runtime -and $existingScript -ieq (Join-Path $codeDirectory 'GPU-Selector.ps1')) {
                 $sunshineBackup = Join-Path $transactionRoot 'sunshine-gpu-selector.before.lnk'
@@ -667,7 +683,7 @@ try {
 
         $legacyShortcut = Join-Path $desktop 'Moonlight GPU Selector.lnk'
         if ($MigrateLegacy -and (Test-Path -LiteralPath $legacyShortcut -PathType Leaf)) {
-            $legacyDetails = Get-ShortcutDetails -Path $legacyShortcut
+            $legacyDetails = Get-ShortcutDetail -Path $legacyShortcut
             $legacyScript = Get-TaskScriptPath $legacyDetails.Arguments
             if ($legacyScript -and [IO.Path]::GetFileName($legacyScript) -ieq 'GPU-Selector.ps1' -and
                 [IO.Path]::GetFileName((Split-Path $legacyScript -Parent)) -ieq 'Moonlight Headless') {

@@ -25,8 +25,12 @@ function ConvertTo-NormalizedCaptureId {
 }
 
 function Assert-SafePathChain {
-    <# .SYNOPSIS Rejects relative, UNC, and reparse-point path components. #>
+    <#
+    .SYNOPSIS
+    Rejects relative, UNC, and reparse-point path components.
+    #>
     [CmdletBinding()]
+    [OutputType([string])]
     param(
         [Parameter(Mandatory = $true)][string]$Path,
         [switch]$AllowMissingLeaf
@@ -53,7 +57,12 @@ function Assert-SafePathChain {
 }
 
 function Get-TrustedProtectedSidValues {
-    <# .SYNOPSIS Returns principals allowed to modify protected package paths. #>
+    <#
+    .SYNOPSIS
+    Returns principals allowed to modify protected package paths.
+    #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseSingularNouns', '',
+        Justification = 'The exported compatibility name describes the returned SID collection.')]
     [CmdletBinding()]
     param()
     $trusted = New-Object System.Collections.Generic.List[string]
@@ -70,7 +79,10 @@ function Get-TrustedProtectedSidValues {
 }
 
 function Get-ProtectedPathAclAssessment {
-    <# .SYNOPSIS Audits owner and effective write-capable allow ACEs on one protected path. #>
+    <#
+    .SYNOPSIS
+    Audits owner and effective write-capable allow ACEs on one protected path.
+    #>
     [CmdletBinding()]
     param([Parameter(Mandatory = $true)][string]$Path)
     $null = Assert-SafePathChain -Path $Path
@@ -115,14 +127,23 @@ function Get-ProtectedPathAclAssessment {
 }
 
 function Test-PathWritableByStandardUsers {
-    <# .SYNOPSIS Reports any write-capable allow ACE for a non-trusted principal. #>
+    <#
+    .SYNOPSIS
+    Reports any write-capable allow ACE for a non-trusted principal.
+    #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseSingularNouns', '',
+        Justification = 'The exported compatibility name refers to the Windows Users principal set.')]
     [CmdletBinding()]
+    [OutputType([bool])]
     param([Parameter(Mandatory = $true)][string]$Path)
     return [bool](Get-ProtectedPathAclAssessment -Path $Path).HasUntrustedWrite
 }
 
 function Assert-ProtectedPathAcl {
-    <# .SYNOPSIS Requires trusted ownership and no non-trusted write-capable allow ACE. #>
+    <#
+    .SYNOPSIS
+    Requires trusted ownership and no non-trusted write-capable allow ACE.
+    #>
     [CmdletBinding()]
     param([Parameter(Mandatory = $true)][string]$Path)
     $assessment = Get-ProtectedPathAclAssessment -Path $Path
@@ -137,7 +158,12 @@ function Assert-ProtectedPathAcl {
 }
 
 function Get-DisplayPnpRecords {
-    <# .SYNOPSIS Enumerates display-class PnP records without changing device state. #>
+    <#
+    .SYNOPSIS
+    Enumerates display-class PnP records without changing device state.
+    #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseSingularNouns', '',
+        Justification = 'The exported compatibility name returns the bounded PnP record collection.')]
     [CmdletBinding()]
     param()
     $entities = @(Get-CimInstance -ClassName Win32_PnPEntity -ErrorAction Stop |
@@ -159,7 +185,7 @@ function Get-DisplayPnpRecords {
                 $property = Get-PnpDeviceProperty -InstanceId $instanceId -KeyName 'DEVPKEY_Device_HardwareIds' -ErrorAction Stop
                 $hardwareIds += @($property.Data)
             } catch {
-                # The signed-driver record remains useful; unresolved hardware IDs simply cannot match a provider.
+                Write-Verbose "PnP hardware IDs were unavailable for $instanceId; the signed-driver record remains usable."
             }
         }
         $problemCode = $null
@@ -179,6 +205,10 @@ function Get-DisplayPnpRecords {
 }
 
 function Test-KnownDisplayProvider {
+    <#
+    .SYNOPSIS
+    Tests whether a PnP record matches one supported display provider role.
+    #>
     param($Record, [Parameter(Mandatory = $true)][ValidateSet('Managed', 'VirtualDesktop')][string]$Role)
     $hardwareIds = @((Get-ObjectPropertyValue $Record 'HardwareIds'))
     if ($hardwareIds.Count -eq 0) {
@@ -200,7 +230,10 @@ function Test-KnownDisplayProvider {
 }
 
 function Resolve-DisplayProvider {
-    <# .SYNOPSIS Resolves exactly one tested display provider or returns a bounded failure. #>
+    <#
+    .SYNOPSIS
+    Resolves exactly one tested display provider or returns a bounded failure.
+    #>
     [CmdletBinding()]
     param(
         [Parameter(Mandatory = $true)][ValidateSet('Managed', 'VirtualDesktop')][string]$Role,
@@ -249,7 +282,7 @@ function Get-CommandExecutablePath {
     return ($trimmed -split '\s+', 2)[0]
 }
 
-function Get-SunshinePaths {
+function Get-SunshinePathConfiguration {
     param(
         [AllowNull()][string]$SunshineDirectory,
         [AllowNull()][string]$SunshineConfigPath,
@@ -305,7 +338,7 @@ function Get-SunshinePaths {
     if ($SunshineConfigPath -and $SunshineDirectory) {
         try {
             if (Test-PathWritableByStandardUsers -Path $SunshineConfigPath) { throw 'configuration is writable by standard users' }
-            $pathEntries = Get-SunshineConfigEntries -Text (Get-Content -LiteralPath $SunshineConfigPath -Raw -Encoding UTF8 -ErrorAction Stop)
+            $pathEntries = Get-SunshineConfigEntry -Text (Get-Content -LiteralPath $SunshineConfigPath -Raw -Encoding UTF8 -ErrorAction Stop)
             if ($pathEntries.ContainsKey('log_path') -and $pathEntries['log_path'].Count -gt 1) { throw 'log_path is duplicated' }
             $rawLogPath = if ($pathEntries.ContainsKey('log_path') -and $pathEntries['log_path'].Count -eq 1) { $pathEntries['log_path'][0].Trim().Trim('"') } else { 'sunshine.log' }
             if ([string]::IsNullOrWhiteSpace($rawLogPath)) { $rawLogPath = 'sunshine.log' }
@@ -351,7 +384,7 @@ function Get-SunshinePaths {
     }
 }
 
-function Get-SunshineConfigEntries {
+function Get-SunshineConfigEntry {
     param([Parameter(Mandatory = $true)][string]$Text)
     $entries = @{}
     foreach ($line in ($Text -split "`r?`n")) {
@@ -402,14 +435,18 @@ function Get-BalancedJsonArray {
 }
 
 function Get-SunshineDisplayEnumeration {
-    <# .SYNOPSIS Reads the latest complete Sunshine display enumeration from its existing log. #>
+    <#
+    .SYNOPSIS
+    Reads the latest complete Sunshine display enumeration from its existing log.
+    #>
     [CmdletBinding()]
+    [OutputType([object[]])]
     param([Parameter(Mandatory = $true)][string]$LogPath)
     if (-not (Test-Path -LiteralPath $LogPath -PathType Leaf)) { return @() }
     $text = Read-SharedTextTail -Path $LogPath
-    $matches = [regex]::Matches($text, '(?m)Currently available(?: display)? devices:\s*\r?$')
-    for ($matchIndex = $matches.Count - 1; $matchIndex -ge 0; $matchIndex--) {
-        $json = Get-BalancedJsonArray -Text $text -StartIndex ($matches[$matchIndex].Index + $matches[$matchIndex].Length)
+    $enumerationMarkers = [regex]::Matches($text, '(?m)Currently available(?: display)? devices:\s*\r?$')
+    for ($matchIndex = $enumerationMarkers.Count - 1; $matchIndex -ge 0; $matchIndex--) {
+        $json = Get-BalancedJsonArray -Text $text -StartIndex ($enumerationMarkers[$matchIndex].Index + $enumerationMarkers[$matchIndex].Length)
         if ([string]::IsNullOrWhiteSpace($json)) { continue }
         try {
             $parsed = $json | ConvertFrom-Json -ErrorAction Stop
@@ -460,10 +497,12 @@ function Get-ValidatedVddSettingsPath {
 
 function Get-DisplayHostConfiguration {
     <#
-      .SYNOPSIS Performs bounded, read-only discovery for installer planning.
-      .DESCRIPTION Hardware and capture targets must match tested providers. Unknown or ambiguous
-      records are returned as blocking reasons; this function never changes services, drivers, tasks,
-      configuration, display topology, resolution, GPU choice, or user pairing.
+    .SYNOPSIS
+    Performs bounded, read-only discovery for installer planning.
+    .DESCRIPTION
+    Hardware and capture targets must match tested providers. Unknown or ambiguous records are
+    returned as blocking reasons; this function never changes services, drivers, tasks,
+    configuration, display topology, resolution, GPU choice, or user pairing.
     #>
     [CmdletBinding()]
     param(
@@ -503,7 +542,7 @@ function Get-DisplayHostConfiguration {
 
     $pathArguments = @{ SunshineDirectory = $SunshineDirectory; SunshineConfigPath = $SunshineConfigPath; SunshineLogPath = $SunshineLogPath }
     if ($PSBoundParameters.ContainsKey('SunshineService')) { $pathArguments.SunshineService = $SunshineService }
-    $paths = Get-SunshinePaths @pathArguments
+    $paths = Get-SunshinePathConfiguration @pathArguments
     foreach ($issue in $paths.Issues) { $blocking.Add($issue) }
 
     $configText = $null; $entries = @{}; $basePort = 47989
@@ -515,7 +554,7 @@ function Get-DisplayHostConfiguration {
                 throw 'configuration is writable by standard users; protected elevated reads are refused'
             }
             $configText = Get-Content -LiteralPath $paths.ConfigPath -Raw -Encoding UTF8 -ErrorAction Stop
-            $entries = Get-SunshineConfigEntries -Text $configText
+            $entries = Get-SunshineConfigEntry -Text $configText
             foreach ($key in @('port', 'output_name', 'dd_configuration_option', 'dd_config_revert_on_disconnect', 'log_path', 'min_log_level')) {
                 if ($entries.ContainsKey($key) -and $entries[$key].Count -gt 1) { $duplicates.Add($key) }
             }
@@ -590,7 +629,7 @@ function Get-DisplayHostConfiguration {
         if ([string]::IsNullOrWhiteSpace($virtualDesktopId)) { $virtualDesktopId = [string](Get-ObjectPropertyValue $virtualDesktop.Device 'DeviceID') }
     }
     $programData = [Environment]::GetFolderPath([Environment+SpecialFolder]::CommonApplicationData)
-    $host = [pscustomobject][ordered]@{
+    $hostConfiguration = [pscustomobject][ordered]@{
         SchemaVersion = 1
         SunshineDirectory = $paths.Directory
         SunshineConfigPath = $paths.ConfigPath
@@ -611,7 +650,7 @@ function Get-DisplayHostConfiguration {
         TaskName = 'Sunshine Display Coexistence'
     }
     [pscustomobject]@{
-        HostConfiguration = $host
+        HostConfiguration = $hostConfiguration
         ManagedProvider = $managed
         ManagedDriverProblemCode = $managedProblemCode
         VirtualDesktopProvider = $virtualDesktop

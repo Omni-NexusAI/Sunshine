@@ -18,8 +18,8 @@ if($select.Items.Count -gt 0){$select.SelectedIndex=0};$form.Controls.Add($selec
 $apply=New-Object Windows.Forms.Button;$apply.Text='Use selected GPU';$apply.Location=New-Object Drawing.Point(20,143);$apply.Size=New-Object Drawing.Size(285,36);$form.Controls.Add($apply)
 $refresh=New-Object Windows.Forms.Button;$refresh.Text='Refresh status';$refresh.Location=New-Object Drawing.Point(315,143);$refresh.Size=New-Object Drawing.Size(285,36);$form.Controls.Add($refresh)
 $note=New-Object Windows.Forms.Label;$note.Location=New-Object Drawing.Point(20,197);$note.Size=New-Object Drawing.Size(580,58);$form.Controls.Add($note)
-function Refresh-State {
-    $taskState='not installed';try{$taskState=(Get-ScheduledTask -TaskName $configuration.TaskName -ErrorAction Stop).State.ToString()}catch{}
+function Show-SelectorStatus {
+    $taskState='not installed';try{$taskState=(Get-ScheduledTask -TaskName $configuration.TaskName -ErrorAction Stop).State.ToString()}catch{$taskState='unavailable'}
     $running=(Get-Service SunshineService -ErrorAction SilentlyContinue).Status -eq 'Running'
     $adapter='not selected';$text=[IO.File]::ReadAllText($configuration.SunshineConfigPath,[Text.Encoding]::UTF8)
     if($text -match '(?m)^adapter_name\s*=\s*(.+)$'){$adapter=$Matches[1].Trim()}
@@ -30,7 +30,7 @@ function Refresh-State {
     if(-not $alternate){$note.Text='Open Virtual Desktop or Meta with its own display before changing GPUs. Normal streaming remains automatic.'}
     if(-not $configuration.VddSettingsPath){$note.Text='Coordinated GPU selection requires the existing MikeTheTech settings XML. Display ownership remains automatic.'}
 }
-$refresh.Add_Click({Refresh-State})
+$refresh.Add_Click({Show-SelectorStatus})
 $apply.Add_Click({
     $apply.Enabled=$false;$form.UseWaitCursor=$true
     try{
@@ -41,9 +41,9 @@ $apply.Add_Click({
         $process.WaitForExit();$process.Refresh()
         if($process.ExitCode -ne 0){throw 'GPU selection failed; see the protected gpu-error.json and gpu-rollback.json reports.'}
     }catch{[void][Windows.Forms.MessageBox]::Show($_.Exception.Message,'Sunshine GPU')}
-    finally{$form.UseWaitCursor=$false;Refresh-State}
+    finally{$form.UseWaitCursor=$false;Show-SelectorStatus}
 })
-Refresh-State
+Show-SelectorStatus
 if($Preview){
     $form.StartPosition='Manual';$form.Location=New-Object Drawing.Point(-10000,-10000);$form.ShowInTaskbar=$false
     $form.Show();[Windows.Forms.Application]::DoEvents()
