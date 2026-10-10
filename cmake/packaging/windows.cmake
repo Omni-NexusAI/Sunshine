@@ -17,6 +17,13 @@ install(TARGETS audio-info RUNTIME DESTINATION "tools" COMPONENT audio)
 install(TARGETS sunshinesvc RUNTIME DESTINATION "tools" COMPONENT application)
 
 # Mandatory scripts
+# Include the opt-in coexistence installer in Sunshine Windows builds. Installing
+# Sunshine alone does not activate the controller or change display ownership.
+install(DIRECTORY "${CMAKE_SOURCE_DIR}/tools/display-coexistence/"
+        DESTINATION "tools/display-coexistence"
+        COMPONENT assets
+        PATTERN "tests" EXCLUDE
+        PATTERN "Build-Package.ps1" EXCLUDE)
 install(FILES
         "${SUNSHINE_SOURCE_ASSETS_DIR}/windows/misc/sunshine-setup.ps1"
         "${SUNSHINE_SOURCE_ASSETS_DIR}/windows/misc/sunshine-setup-process.ps1"

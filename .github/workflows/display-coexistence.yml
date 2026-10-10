@@ -1,0 +1,41 @@
+---
+name: Windows display coexistence package
+on:
+  pull_request:
+    paths:
+      - 'tools/display-coexistence/**'
+      - '.github/workflows/display-coexistence.yml'
+      - 'cmake/packaging/windows.cmake'
+  push:
+    branches: ['feat/windows-display-coexistence', 'coexistence-stable-base']
+    paths:
+      - 'tools/display-coexistence/**'
+      - '.github/workflows/display-coexistence.yml'
+      - 'cmake/packaging/windows.cmake'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  validate-package:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Offline policy and parser tests
+        shell: powershell
+        run: |
+          ./tools/display-coexistence/tests/Test-DisplayCoexistence.ps1
+          ./tools/display-coexistence/tests/Test-HostDiscovery.ps1
+      - name: Build opt-in Windows package
+        shell: powershell
+        run: |
+          ./tools/display-coexistence/Build-Package.ps1 -OutputDirectory ./cmake-build-display-package -BundleSunshine
+      - name: Upload installable package and hashes
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: Sunshine-Display-Coexistence-Windows
+          path: |
+            cmake-build-display-package/*.zip
+            cmake-build-display-package/*.sha256
+            cmake-build-display-package/*.json
+          if-no-files-found: error

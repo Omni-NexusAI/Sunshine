@@ -22,6 +22,10 @@
   <a href="https://sonarcloud.io/project/overview?id=LizardByte_Sunshine"><img src="https://img.shields.io/sonar/quality_gate/LizardByte_Sunshine.svg?server=https%3A%2F%2Fsonarcloud.io&style=for-the-badge&logo=sonarqubecloud&label=sonarcloud" alt="SonarCloud"></a>
 </div>
 
+## Omni-NexusAI Windows display coexistence preview
+
+This fork adds [automatic Moonlight and Virtual Desktop display ownership](tools/display-coexistence/README.md), with discovered host settings, protected installation, GPU selection and recovery. The feature branch is based on the latest stable Sunshine release. Windows packages include the opt-in installer; normal Sunshine installation alone does not activate it.
+
 ## ℹ️ About
 
 Sunshine is a self-hosted game stream host for Moonlight.

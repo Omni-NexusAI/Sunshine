@@ -1,0 +1,11 @@
+{
+  "packageVersion": "0.1.0-preview",
+  "sunshineRelease": "v2026.914.233613",
+  "sunshineCommit": "63d35f702ee9e362e43263742981836ec0710384",
+  "source": "https://github.com/LizardByte/Sunshine/releases/tag/v2026.914.233613",
+  "platform": "Windows",
+  "windowsAmd64InstallerUrl": "https://github.com/LizardByte/Sunshine/releases/download/v2026.914.233613/Sunshine-Windows-AMD64-installer.msi",
+  "windowsAmd64InstallerSha256": "1d7fed8beecd5889dc7ff14cf9f42d6d38f37c3066c13c6c2a5f4e91847e0ccf",
+  "supportedManagedProvider": "MikeTheTech Root\\MttVDD",
+  "preferredHeadlessProvider": "Virtual Desktop Root\\Vdvmd"
+}
